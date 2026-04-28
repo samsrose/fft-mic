@@ -12,7 +12,11 @@
 
 # testing
 /coverage
-
+prompt.txt
+AGENTS.md
+CLAUDE.md
+README.md
+changes/changes.txt
 # next.js
 /.next/
 /out/
