@@ -1,0 +1,117 @@
+## Changes Log - FFT Audio Analyzer Dashboard
+
+### 2026-04-10 - Initial Implementation
+
+1. PROJECT SCAFFOLD
+   - Initialized Next.js 16.2.3 with TypeScript, Tailwind CSS v4, and App Router
+   - Configured shadcn/ui with base-ui components (button, slider, select, switch, card, tabs, label, separator, badge, tooltip)
+   - Installed zustand for state management
+   - Set up dark theme as default
+
+2. TYPE DEFINITIONS (src/types/audio.ts)
+   - Defined const arrays + literal types for FFT sizes, window functions, sample rates, bit depths, display modes, color maps, frequency scales
+   - Created interfaces: AudioConfig, DisplayConfig, AnalysisData, AudioStats, FrequencyRange, DbRange
+   - Added ECS entity types: Entity, AudioSourceEntity, AnalyzerEntity, VisualizerEntity
+   - Created DeviceInfo interface for microphone enumeration
+
+3. RING 0 - CORE AUDIO ENGINE (src/core/)
+   - MicrophoneSource.ts: Permission guard (checkMicrophonePermission), getUserMedia wrapper with audio constraints (echo cancellation off, noise suppression off, auto gain off), device enumeration, stream cleanup
+   - AudioEngine.ts: AudioContext lifecycle management, node graph (MediaStreamSource -> GainNode -> AnalyserNode), runtime config changes (FFT size, smoothing, gain, dB range), time/frequency data extraction, latency stats
+
+4. RING 1 - DSP PROCESSING (src/dsp/)
+   - WindowFunctions.ts: 9 window function implementations (rectangular, hamming, hanning, blackman, blackmanHarris, kaiser with Bessel I0 approximation, triangular, flatTop, welch), coefficient caching, applyWindow helper
+   - FFTProcessor.ts: Cooley-Tukey radix-2 DIT FFT with bit-reversal permutation, magnitude-to-dB conversion, phase computation, power-of-2 padding
+   - Filters.ts: Biquad coefficient generators (low-pass, high-pass, band-pass), magnitude frequency response computation
+
+5. RING 2 - STATE & HOOKS (src/state/, src/hooks/)
+   - useAudioStore.ts: Zustand store with all audio config, display config, analysis data, and stats with individual setters
+   - useAnimationFrame.ts: requestAnimationFrame hook with delta timing
+   - useAudioEngine.ts: Hook wrapping AudioEngine lifecycle, device enumeration, start/stop/toggle, reactive config sync
+   - useFFTAnalysis.ts: Per-frame analysis loop applying window functions and custom FFT, FPS tracking
+
+6. RING 3 - VISUALIZATION COMPONENTS (src/components/dashboard/)
+   - WaveformDisplay.tsx: Canvas oscilloscope with grid overlay, center axis, raw + windowed waveform rendering, amplitude labels
+   - SpectrumDisplay.tsx: Frequency magnitude plot with bars/line/filled modes, log/linear frequency scale, peak hold with decay, dB/frequency axis labels
+   - SpectrogramDisplay.tsx: Scrolling 2D heatmap using offscreen canvas, 4 color maps (inferno, viridis, plasma, grayscale), logarithmic frequency mapping
+   - TopBar.tsx: Start/stop toggle, microphone selector, quick gain slider, real-time stats badges (sample rate, latency, FPS, status)
+   - ControlPanel.tsx: 4-column advanced controls grid with FFT size, window function, kaiser beta, smoothing, gain, sample rate, bit depth, frequency range, display mode, frequency scale, color map, windowed toggle, dB range, overlap, peak hold with decay rate
+   - Dashboard.tsx: Grid layout orchestrator wiring audio engine, FFT analysis, and all panels
+
+7. APP SETUP (src/app/)
+   - layout.tsx: Dark theme class, Geist fonts, TooltipProvider wrapper, metadata
+   - page.tsx: Client component rendering Dashboard
+   - globals.css: shadcn theme variables with dark mode support
+
+### 2026-04-10 - Dark/Light Theme Switcher
+
+8. THEME SYSTEM
+   - Created useTheme.ts hook: manages dark/light state with localStorage persistence, system preference detection, FOUC prevention via inline <script> in layout.tsx
+   - Created useCanvasColors.ts hook: uses useSyncExternalStore to observe dark class on <html>, returns theme-appropriate color palettes for all canvas rendering (bg, grid, axis, text, primary, secondary, peak, fill gradients)
+   - Created ThemeToggle.tsx component: sun/moon icon button placed in TopBar, toggles between dark and light themes
+   - Updated layout.tsx: removed hardcoded "dark" class, added inline script for flash-free theme initialization, added suppressHydrationWarning
+   - Updated WaveformDisplay.tsx, SpectrumDisplay.tsx, SpectrogramDisplay.tsx: replaced hardcoded dark colors with theme-aware colors from useCanvasColors hook
+   - Light theme uses darker primary (#0891b2 cyan-600) and secondary (#7c3aed violet-600) tones for good contrast on light backgrounds
+
+### 2026-04-10 - System Audio Capture Support
+
+9. SYSTEM AUDIO SOURCE
+   - Added AudioSourceType ("microphone" | "system") to types/audio.ts
+   - Added requestSystemAudioStream() to MicrophoneSource.ts: uses getDisplayMedia with systemAudio: "include" constraint for capturing desktop/tab audio; drops the video track and validates an audio track was captured
+   - Added isSystemAudioSupported() helper for feature detection
+   - Updated AudioEngine.start() to accept sourceType parameter, routing to getDisplayMedia for "system" or getUserMedia for "microphone"
+   - Added sourceType + setSourceType to Zustand store
+   - Updated useAudioEngine.ts to pass sourceType through to engine.start()
+   - Redesigned TopBar.tsx: added Source dropdown (Microphone / System Audio with icons), device picker only visible for mic source, inline hint for system audio explaining the browser picker, status badge shows "SYSTEM" when capturing desktop audio
+
+### 2026-04-10 - Spectrogram Hover Frequency Indicator
+
+10. SPECTROGRAM CROSSHAIR OVERLAY
+    - Added a transparent overlay canvas layered on top of the spectrogram via absolute positioning
+    - On mouse move, computes the frequency at the cursor's X position using the same log-scale mapping as the spectrogram rendering
+    - Draws a dashed vertical line at the cursor position with a dark pill label showing the frequency (e.g. "1.25 kHz" or "440 Hz")
+    - Pill auto-flips to the left side when near the right edge to prevent overflow
+    - Overlay clears on mouse leave; cursor shows as crosshair over the spectrogram
+    - Overlay rendering is a separate useEffect from the spectrogram data rendering so the two don't interfere
+
+### 2026-04-11 - Remove Waveform, Enlarge Spectrogram
+
+11. LAYOUT SIMPLIFICATION
+    - Removed WaveformDisplay from Dashboard.tsx grid layout and its import
+    - SpectrumDisplay now renders full-width (no longer in a 2-column grid with Waveform)
+    - Increased SpectrogramDisplay canvas height from 180px to 360px (both data and overlay canvases)
+    - WaveformDisplay.tsx file retained but no longer mounted
+
+### 2026-04-11 - Dynamic Document Title with Peak Frequency
+
+12. DOCUMENT TITLE HOOK
+    - Created useDocumentTitle.ts hook: reads analysisData.magnitudeDb each frame, finds the bin with highest magnitude, converts bin index to frequency via (bin / binCount) * nyquist, formats as "1.25 kHz" or "440 Hz"
+    - Sets document.title to "{peakFreq} — FFT Audio Analyzer" while running; resets to base title when stopped
+    - Called from Dashboard.tsx alongside the other analysis hooks
+
+### 2026-04-19 - Neon Serverless Postgres Integration
+
+13. DATABASE SETUP
+    - Installed @neondatabase/serverless driver for HTTP-based Postgres queries
+    - Created .env.local with DATABASE_URL pointing to Neon project young-mode-04406466 (pooler endpoint, sslmode=require)
+    - Created database schema: presets table (full audio+display config), sessions table (tracked analysis runs), snapshots table (captured frequency summaries)
+    - Added indexes on sessions(started_at), snapshots(session_id), snapshots(created_at)
+    - Seeded default preset matching Zustand store defaults
+
+14. SERVER-SIDE DATA LAYER (src/lib/db.ts, src/types/db.ts, src/app/api/)
+    - Created Neon SQL client wrapper in src/lib/db.ts using neon() HTTP driver
+    - Defined TypeScript interfaces for all DB models: DbPreset, DbSession, DbSnapshot, plus Create/End input types
+    - API route: GET/POST /api/presets — list all presets, create new preset from current config
+    - API route: GET/DELETE /api/presets/[id] — fetch single preset, delete non-default preset
+    - API route: GET/POST /api/sessions — list recent sessions (limit 50), create new session on analyzer start
+    - API route: GET/PATCH /api/sessions/[id] — fetch single session, end session with computed stats (duration, avg_db, peak_db, peak_frequency)
+    - API route: GET/POST /api/snapshots — list snapshots (optionally filtered by session_id), create snapshot with top-20 frequency bins, magnitude summary, RMS, spectral centroid
+
+15. CLIENT HOOKS (src/hooks/)
+    - usePresets.ts: fetches presets on mount, saveCurrentAsPreset (reads all Zustand state), loadPreset (writes all fields back to store), deletePreset
+    - useSessionTracking.ts: startSession/endSession lifecycle tied to isRunning state, periodic recordSample collecting RMS dB and peak frequency, takeSnapshot computing magnitude summary stats and spectral centroid from live Float32Array data
+
+16. UI COMPONENTS (src/components/dashboard/)
+    - PresetManager.tsx: card with save-current form (inline text input + save button), preset chips with load-on-click and delete-on-hover, default badge
+    - SessionHistory.tsx: card with auto-refreshing (15s interval) session list showing status badge, timestamp, duration, peak dB, peak frequency, source type
+    - Updated Dashboard.tsx: wired usePresets + useSessionTracking hooks, automatic session start/end on isRunning change, periodic sample recording (2s interval), snapshot button in TopBar when running
+    - Updated TopBar.tsx: added onSnapshot prop with camera icon Snapshot button (visible only while running)

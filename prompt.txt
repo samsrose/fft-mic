@@ -1,0 +1,7 @@
+Generate a real-time audio analysis web application using FFT with the internal MacBook microphone. Display realtime waveforms (time-domain oscilloscope, frequency spectrum, and scrolling spectrogram) in a dashboard. Provide controls to modify the window function type (Hamming, Hanning, Blackman, Blackman-Harris, Kaiser, Triangular, Flat-top, Welch, Rectangular). Include options for changing the FFT size, sample rate, bit depth, gain, smoothing factor, frequency range, dB range, display mode (bars/line/filled), frequency scale (linear/logarithmic), color map, overlap percentage, and peak hold with configurable decay. Use Next.js 15 with strict TypeScript, shadcn/ui, Tailwind CSS v4, Zustand, and HTML5 Canvas rendering at 60fps. Follow ring-level security architecture with ECS-inspired data flow patterns.
+
+Remove the waveform section and make the spectrogram larger.
+
+Show highest frequency as the HTML title element.
+
+Integrate Neon Serverless Postgres (org: org-broad-scene-55565252, project: young-mode-04406466) to persist all app data. Create database schema for presets (saved audio/display configurations), sessions (tracked analysis runs with duration and peak statistics), and snapshots (captured frequency analysis summaries). Add API routes for CRUD operations, client hooks for preset save/load and automatic session tracking, and UI components for preset management and session history. Store connection via @neondatabase/serverless HTTP driver.
