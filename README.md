@@ -1,6 +1,6 @@
 # FFT Audio Analyzer Dashboard
 
-Real-time audio spectrum analysis dashboard that captures audio from your MacBook's internal microphone, performs FFT with configurable window functions, and renders live visualizations.
+Real-time audio spectrum analysis dashboard that captures audio from your computer's external/internal microphone, performs FFT with configurable window functions, and renders live visualizations based on the spectrum limit available via the microphone.
 
 ## Features
 
